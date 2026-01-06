@@ -12,7 +12,7 @@ Key Features:
     - Learning rate scheduling
     - Gradient clipping for training stability
     - Model checkpointing (saves best model)
-    - Comprehensive evaluation and error analysis
+    - Comprehensive evaluation on test set
 """
 
 import torch
@@ -24,8 +24,6 @@ from dataset import ArabicDataset
 from torchvision import transforms
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import random_split
-import matplotlib.pyplot as plt
-import numpy as np
 
 
 def evaluate_model(model, data_loader, criterion, device):
@@ -319,56 +317,5 @@ test_loss, test_accuracy = evaluate_model(model, test_loader, criterion, device)
 
 print(f'\nFinal Test Accuracy: {test_accuracy:.2f}%')
 print(f'Test Loss: {test_loss:.4f}')
-
-
-# ============================================================================
-# 10. ERROR ANALYSIS
-# ============================================================================
-
-print("\n" + "="*50)
-print("Error Analysis...")
-print("="*50)
-
-# Collect incorrectly classified samples for visualization
-incorrect_images = []
-incorrect_labels = []
-predictions = []
-
-model.eval()
-with torch.no_grad():
-    for images, labels in test_loader:
-        images = images.to(device)
-        labels = labels.to(device)
-
-        outputs = model(images)
-        _, predicted = torch.max(outputs, 1)
-
-        # Store misclassified samples
-        for i in range(len(labels)):
-            if predicted[i] != labels[i]:
-                incorrect_images.append(images[i].cpu())
-                incorrect_labels.append(labels[i].cpu())
-                predictions.append(predicted[i].cpu())
-
-print(f"Total incorrect predictions: {len(incorrect_images)} out of {len(test_dataset)}")
-
-# Visualize first 5 incorrect predictions
-if len(incorrect_images) > 0:
-    fig, axes = plt.subplots(1, min(5, len(incorrect_images)), figsize=(12, 6))
-    if min(5, len(incorrect_images)) == 1:
-        axes = [axes]
-    for i, ax in enumerate(axes):
-        if i < len(incorrect_images):
-            img = incorrect_images[i].squeeze().numpy()
-            # Denormalize image for display (convert from [-1, 1] to [0, 1])
-            img = (img * 0.5) + 0.5
-            img = np.clip(img, 0, 1)
-            ax.imshow(img, cmap='gray')
-            ax.set_title(f'True: {incorrect_labels[i]} - Pred: {predictions[i]}')
-            ax.axis('off')
-    plt.tight_layout()
-    plt.savefig('error_analysis.png', dpi=150, bbox_inches='tight')
-    print("Error analysis plot saved as 'error_analysis.png'")
-    plt.show()
-else:
-    print("No errors found! Perfect accuracy!")
+print(f'\nModel saved as: arabic_cnn_gpu.pth')
+print('Training and evaluation completed successfully!')
