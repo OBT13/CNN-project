@@ -25,8 +25,11 @@ ENV/
 .DS_Store
 Thumbs.db
 
-# Data files (optional - uncomment if you don't want to commit data)
-# data/
+# Data files - exclude large CSV and data files
+data/*.csv
+data/*.mat
+data/**/*.csv
+data/**/*.mat
 
 # Executables
 *.exe
