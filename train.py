@@ -1,58 +1,416 @@
+# import torch
+# from torch.utils.data import DataLoader
+# import torch.nn as nn
+# import torch.optim as optim
+# from model import StrongCNN
+# from dataset import ArabicDataset
+# from torchvision import transforms
+# from torch.optim.lr_scheduler import StepLR
+# import matplotlib.pyplot as plt
+
+# # 1. Data Augmentation
+# # transform = transforms.Compose([
+# #     transforms.RandomRotation(20),        # دوران الصور
+# #     transforms.RandomHorizontalFlip(),     # قلب الصور أفقياً
+# #     transforms.RandomVerticalFlip(),       # قلب الصور رأسياً
+# #     transforms.RandomResizedCrop(32),
+# #      transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.2),  # تحسين الألوان
+# #     transforms.RandomAffine(degrees=10, translate=(0.1, 0.1)),     # قص صور عشوائي
+# #     transforms.ToTensor(),                # تحويل الصور إلى Tensors
+# #     transforms.Normalize(mean=[0.5], std=[0.5])  # تطبيع الصور
+# # ])
+
+# transform = transforms.Compose([
+#     transforms.Resize((64, 64)),   # keep enough resolution
+#     transforms.RandomRotation(10), # small rotation
+#     transforms.ToTensor(),
+#     transforms.Normalize(mean=[0.5], std=[0.5])
+# ])
+
+# # 2. Device setup (CUDA/CPU)
+# device = "cuda" if torch.cuda.is_available() else "cpu"
+# print("Training on:", device)
+
+# torch.backends.cudnn.benchmark = True
+# # 3. تحميل الداتا مع augmentations
+# train_dataset = ArabicDataset(
+#     "data/csvTrainImages 13440x1024.csv",
+#     "data/csvTrainLabel 13440x1.csv",
+#     transform=transform
+# )
+
+# # 4. DataLoader (تحميل البيانات على دفعات)
+# train_loader = DataLoader(
+#     train_dataset,
+#     batch_size=512,
+#     shuffle=True,
+#     num_workers=0  # Windows-compatible with num_workers=0
+# )
+
+# # 5. إعداد الموديل
+# model = StrongCNN().to(device)
+# criterion = nn.CrossEntropyLoss()
+# optimizer = optim.Adam(model.parameters(), lr=0.001)
+
+# # 6. Learning Rate Scheduler
+# scheduler = StepLR(optimizer, step_size=10, gamma=0.7)  # تنخفض الـ learning rate بعد كل 10 epochs
+
+# # 7. Training loop
+# epochs = 100
+# for epoch in range(epochs):
+#     model.train()
+#     total_loss = 0
+
+#     for images, labels in train_loader:
+#         images = images.to(device)
+#         labels = labels.to(device)
+
+#         outputs = model(images)
+#         loss = criterion(outputs, labels)
+
+#         optimizer.zero_grad()
+#         loss.backward()
+#         optimizer.step()
+
+#         total_loss += loss.item()
+
+#     scheduler.step()  # Update learning rate at each epoch
+#     print(f"Epoch [{epoch+1}/{epochs}] Loss: {total_loss/len(train_loader):.4f}")
+
+# # 8. Save model
+# torch.save(model.state_dict(), "arabic_cnn_gpu.pth")
+# print("Model saved ✔️")
+
+# # 9. Test the model (evaluation on test data)
+# test_dataset = ArabicDataset(
+#     "data/csvTestImages 3360x1024.csv",
+#     "data/csvTestLabel 3360x1.csv",
+#     transform=transform
+# )
+
+# test_loader = DataLoader(test_dataset, batch_size=128, shuffle=False)
+# model.eval()  # Set model to evaluation mode
+
+# correct = 0
+# total = 0
+# with torch.no_grad():  # Disable gradient computation for testing
+#     for images, labels in test_loader:
+#         images = images.to(device)
+#         labels = labels.to(device)
+
+#         outputs = model(images)
+#         _, predicted = torch.max(outputs, 1)
+#         total += labels.size(0)
+#         correct += (predicted == labels).sum().item()
+
+# accuracy = 100 * correct / total
+# print(f'Accuracy on test data: {accuracy:.2f}%')
+
+# # 10. Error Analysis (optional but helpful)
+# incorrect_images = []
+# incorrect_labels = []
+# predictions = []
+
+# with torch.no_grad():
+#     for images, labels in test_loader:
+#         images = images.to(device)
+#         labels = labels.to(device)
+
+#         outputs = model(images)
+#         _, predicted = torch.max(outputs, 1)
+
+#         for i in range(len(labels)):
+#             if predicted[i] != labels[i]:
+#                 incorrect_images.append(images[i].cpu())
+#                 incorrect_labels.append(labels[i].cpu())
+#                 predictions.append(predicted[i].cpu())
+
+# # Displaying the first 5 incorrect predictions
+# fig, axes = plt.subplots(1, 5, figsize=(12, 6))
+# for i, ax in enumerate(axes.flatten()):
+#     if i < len(incorrect_images):
+#         img = incorrect_images[i].squeeze().numpy()
+#         ax.imshow(img, cmap='gray')
+#         ax.set_title(f'True: {incorrect_labels[i]} - Pred: {predictions[i]}')
+#         ax.axis('off')
+# plt.show()
+
+##############################################################################################################################
+
+
+# import torch
+# import torch.nn as nn
+# import torch.optim as optim
+# from torch.utils.data import DataLoader, random_split
+# from torchvision import transforms
+# from torch.optim.lr_scheduler import ReduceLROnPlateau
+
+# from model import StrongCNN
+# from dataset import ArabicDataset
+
+# # =========================
+# # DEVICE
+# # =========================
+# device = "cuda" if torch.cuda.is_available() else "cpu"
+# print("Training on:", device)
+# torch.backends.cudnn.benchmark = True
+
+# # =========================
+# # TRANSFORMS
+# # =========================
+# train_transform = transforms.Compose([
+#     transforms.Resize((64, 64)),
+#     transforms.RandomRotation(10),
+#     transforms.ToTensor(),
+#     transforms.Normalize(mean=[0.5], std=[0.5])
+# ])
+
+# test_transform = transforms.Compose([
+#     transforms.Resize((64, 64)),
+#     transforms.ToTensor(),
+#     transforms.Normalize(mean=[0.5], std=[0.5])
+# ])
+
+# # =========================
+# # DATASET
+# # =========================
+# full_dataset = ArabicDataset(
+#     "data/csvTrainImages 13440x1024.csv",
+#     "data/csvTrainLabel 13440x1.csv",
+#     transform=train_transform
+# )
+
+# val_ratio = 0.1
+# val_size = int(len(full_dataset) * val_ratio)
+# train_size = len(full_dataset) - val_size
+
+# train_dataset, val_dataset = random_split(
+#     full_dataset, [train_size, val_size]
+# )
+
+# # validation بلا augmentation
+# val_dataset.dataset.transform = test_transform
+
+# # =========================
+# # DATALOADER
+# # =========================
+# batch_size = 256
+
+# train_loader = DataLoader(
+#     train_dataset,
+#     batch_size=batch_size,
+#     shuffle=True,
+#     num_workers=2
+# )
+
+# val_loader = DataLoader(
+#     val_dataset,
+#     batch_size=batch_size,
+#     shuffle=False,
+#     num_workers=2
+# )
+
+# # =========================
+# # MODEL
+# # =========================
+# model = StrongCNN(num_classes=28).to(device)
+
+# criterion = nn.CrossEntropyLoss()
+# optimizer = optim.Adam(model.parameters(), lr=0.001)
+
+# scheduler = ReduceLROnPlateau(
+#     optimizer,
+#     mode="max",
+#     factor=0.5,
+#     patience=5
+# )
+
+
+# # =========================
+# # TRAINING
+# # =========================
+# epochs = 100
+# best_val_acc = 0
+# patience = 10
+# counter = 0
+
+# for epoch in range(epochs):
+
+#     # TRAIN
+#     model.train()
+#     train_loss = 0
+
+#     for images, labels in train_loader:
+#         images = images.to(device)
+#         labels = labels.to(device)
+
+#         outputs = model(images)
+#         loss = criterion(outputs, labels)
+
+#         optimizer.zero_grad()
+#         loss.backward()
+#         optimizer.step()
+
+#         train_loss += loss.item()
+
+#     train_loss /= len(train_loader)
+
+#     # VALIDATION
+#     model.eval()
+#     correct, total = 0, 0
+
+#     with torch.no_grad():
+#         for images, labels in val_loader:
+#             images = images.to(device)
+#             labels = labels.to(device)
+
+#             outputs = model(images)
+#             _, predicted = torch.max(outputs, 1)
+
+#             total += labels.size(0)
+#             correct += (predicted == labels).sum().item()
+
+#     val_acc = correct / total
+#     scheduler.step(val_acc)
+
+#     print(f"""
+# Epoch [{epoch+1}/{epochs}]
+# Train Loss: {train_loss:.4f}
+# Validation Accuracy: {val_acc*100:.2f}%
+# """)
+
+#     # EARLY STOPPING
+#     if val_acc > best_val_acc:
+#         best_val_acc = val_acc
+#         counter = 0
+#         torch.save(model.state_dict(), "best_arabic_model.pth")
+#         print("✔️ Best model saved")
+#     else:
+#         counter += 1
+#         if counter >= patience:
+#             print("⛔ Early stopping activated")
+#             break
+
+# # =========================
+# # TEST
+# # =========================
+# test_dataset = ArabicDataset(
+#     "data/csvTestImages 3360x1024.csv",
+#     "data/csvTestLabel 3360x1.csv",
+#     transform=test_transform
+# )
+
+# test_loader = DataLoader(test_dataset, batch_size=256, shuffle=False)
+
+# model.load_state_dict(torch.load("best_arabic_model.pth"))
+# model.eval()
+
+# correct, total = 0, 0
+# with torch.no_grad():
+#     for images, labels in test_loader:
+#         images = images.to(device)
+#         labels = labels.to(device)
+
+#         outputs = model(images)
+#         _, predicted = torch.max(outputs, 1)
+
+#         total += labels.size(0)
+#         correct += (predicted == labels).sum().item()
+
+# print(f"🔥 Test Accuracy: {100 * correct / total:.2f}%")
+
 import torch
-from torch.utils.data import DataLoader
 import torch.nn as nn
 import torch.optim as optim
-from model import StrongCNN
+from torch.utils.data import DataLoader, random_split
+from torchvision import transforms, models
+from torch.optim.lr_scheduler import ReduceLROnPlateau
+
 from dataset import ArabicDataset
-from torchvision import transforms
-from torch.optim.lr_scheduler import StepLR
-import matplotlib.pyplot as plt
 
-# 1. Data Augmentation
-transform = transforms.Compose([
-    transforms.RandomRotation(20),        # دوران الصور
-    transforms.RandomHorizontalFlip(),     # قلب الصور أفقياً
-    transforms.RandomVerticalFlip(),       # قلب الصور رأسياً
-    transforms.RandomResizedCrop(32),
-     transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.2),  # تحسين الألوان
-    transforms.RandomAffine(degrees=10, translate=(0.1, 0.1)),     # قص صور عشوائي
-    transforms.ToTensor(),                # تحويل الصور إلى Tensors
-    transforms.Normalize(mean=[0.5], std=[0.5])  # تطبيع الصور
-])
-
-# 2. Device setup (CUDA/CPU)
+# =========================
+# DEVICE
+# =========================
 device = "cuda" if torch.cuda.is_available() else "cpu"
 print("Training on:", device)
+torch.backends.cudnn.benchmark = True
 
-# 3. تحميل الداتا مع augmentations
-train_dataset = ArabicDataset(
+# =========================
+# TRANSFORMS
+# =========================
+train_transform = transforms.Compose([
+    transforms.Resize((64, 64)),
+    transforms.RandomRotation(10),                  # دوران خفيف
+    transforms.RandomAffine(0, translate=(0.05, 0.05)),  # تحريك خفيف
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.5], std=[0.5])
+])
+
+test_transform = transforms.Compose([
+    transforms.Resize((64, 64)),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.5], std=[0.5])
+])
+
+# =========================
+# DATASET
+# =========================
+full_dataset = ArabicDataset(
     "data/csvTrainImages 13440x1024.csv",
     "data/csvTrainLabel 13440x1.csv",
-    transform=transform
+    transform=train_transform
 )
 
-# 4. DataLoader (تحميل البيانات على دفعات)
-train_loader = DataLoader(
-    train_dataset,
-    batch_size=128,
-    shuffle=True,
-    num_workers=0  # Windows-compatible with num_workers=0
-)
+val_ratio = 0.1
+val_size = int(len(full_dataset) * val_ratio)
+train_size = len(full_dataset) - val_size
 
-# 5. إعداد الموديل
-model = StrongCNN().to(device)
+train_dataset, val_dataset = random_split(full_dataset, [train_size, val_size])
+
+# validation بدون augmentations
+val_dataset.dataset.transform = test_transform
+
+# =========================
+# DATALOADER
+# =========================
+batch_size = 512
+
+train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=2)
+val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=2)
+
+# =========================
+# MODEL: ResNet18 pretrained
+# =========================
+model = models.resnet18(pretrained=True)
+
+# إذا الصور grayscale: تحويل conv1 من 3 → 1 channel
+model.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
+
+num_classes = 28
+model.fc = nn.Linear(model.fc.in_features, num_classes)
+
+model = model.to(device)
+
+# =========================
+# LOSS, OPTIMIZER, SCHEDULER
+# =========================
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=0.001)
+scheduler = ReduceLROnPlateau(optimizer, mode="max", factor=0.5, patience=5)
 
-# 6. Learning Rate Scheduler
-scheduler = StepLR(optimizer, step_size=10, gamma=0.7)  # تنخفض الـ learning rate بعد كل 10 epochs
+# =========================
+# TRAINING LOOP
+# =========================
+epochs = 100
+best_val_acc = 0
+patience = 10
+counter = 0
 
-# 7. Training loop
-epochs = 30
 for epoch in range(epochs):
-    model.train()
-    total_loss = 0
 
+    # TRAIN
+    model.train()
+    train_loss = 0
     for images, labels in train_loader:
         images = images.to(device)
         labels = labels.to(device)
@@ -64,45 +422,60 @@ for epoch in range(epochs):
         loss.backward()
         optimizer.step()
 
-        total_loss += loss.item()
+        train_loss += loss.item()
 
-    scheduler.step()  # Update learning rate at each epoch
-    print(f"Epoch [{epoch+1}/{epochs}] Loss: {total_loss/len(train_loader):.4f}")
+    train_loss /= len(train_loader)
 
-# 8. Save model
-torch.save(model.state_dict(), "arabic_cnn_gpu.pth")
-print("Model saved ✔️")
+    # VALIDATION
+    model.eval()
+    correct, total = 0, 0
+    with torch.no_grad():
+        for images, labels in val_loader:
+            images = images.to(device)
+            labels = labels.to(device)
 
-# 9. Test the model (evaluation on test data)
+            outputs = model(images)
+            _, predicted = torch.max(outputs, 1)
+
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+
+    val_acc = correct / total
+    scheduler.step(val_acc)
+
+    print(f"""
+Epoch [{epoch+1}/{epochs}]
+Train Loss: {train_loss:.4f}
+Validation Accuracy: {val_acc*100:.2f}%
+""")
+
+    # EARLY STOPPING
+    if val_acc > best_val_acc:
+        best_val_acc = val_acc
+        counter = 0
+        torch.save(model.state_dict(), "best_arabic_resnet18.pth")
+        print("✔️ Best model saved")
+    else:
+        counter += 1
+        if counter >= patience:
+            print("⛔ Early stopping activated")
+            break
+
+# =========================
+# TEST
+# =========================
 test_dataset = ArabicDataset(
     "data/csvTestImages 3360x1024.csv",
     "data/csvTestLabel 3360x1.csv",
-    transform=transform
+    transform=test_transform
 )
 
-test_loader = DataLoader(test_dataset, batch_size=128, shuffle=False)
-model.eval()  # Set model to evaluation mode
+test_loader = DataLoader(test_dataset, batch_size=256, shuffle=False)
 
-correct = 0
-total = 0
-with torch.no_grad():  # Disable gradient computation for testing
-    for images, labels in test_loader:
-        images = images.to(device)
-        labels = labels.to(device)
+model.load_state_dict(torch.load("best_arabic_resnet18.pth"))
+model.eval()
 
-        outputs = model(images)
-        _, predicted = torch.max(outputs, 1)
-        total += labels.size(0)
-        correct += (predicted == labels).sum().item()
-
-accuracy = 100 * correct / total
-print(f'Accuracy on test data: {accuracy:.2f}%')
-
-# 10. Error Analysis (optional but helpful)
-incorrect_images = []
-incorrect_labels = []
-predictions = []
-
+correct, total = 0, 0
 with torch.no_grad():
     for images, labels in test_loader:
         images = images.to(device)
@@ -111,18 +484,8 @@ with torch.no_grad():
         outputs = model(images)
         _, predicted = torch.max(outputs, 1)
 
-        for i in range(len(labels)):
-            if predicted[i] != labels[i]:
-                incorrect_images.append(images[i].cpu())
-                incorrect_labels.append(labels[i].cpu())
-                predictions.append(predicted[i].cpu())
+        total += labels.size(0)
+        correct += (predicted == labels).sum().item()
 
-# Displaying the first 5 incorrect predictions
-fig, axes = plt.subplots(1, 5, figsize=(12, 6))
-for i, ax in enumerate(axes.flatten()):
-    if i < len(incorrect_images):
-        img = incorrect_images[i].squeeze().numpy()
-        ax.imshow(img, cmap='gray')
-        ax.set_title(f'True: {incorrect_labels[i]} - Pred: {predictions[i]}')
-        ax.axis('off')
-plt.show()
+print(f"🔥 Test Accuracy: {100 * correct / total:.2f}%")
+

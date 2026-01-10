@@ -1,1 +1,13 @@
-*.png
+# Python
+__pycache__/
+*.pyc
+
+# Virtual environment
+venv/
+
+# Windows junk
+*:Zone.Identifier
+
+# Model weights (optional but recommended)
+*.pth
+
